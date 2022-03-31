@@ -1,0 +1,180 @@
+import tkinter
+from tkinter import *
+from transliterate import translit, get_available_language_codes, get_available_language_packs
+from pyad import *
+from pyad import adquery, adsearch, adobject, adcomputer, adgroup, adcontainer, addomain, pyad
+import pandas as pd
+import random
+import string
+from tkinter import ttk
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+
+
+def New_User():
+    pyad.set_defaults(ldap_server="KMSAD02.kubis.ru",
+                      username="f.burov",
+                      password="MSUMCFZZ342511m")
+    length = 8
+    chars = string.ascii_lowercase + string.ascii_uppercase + string.digits + '!@#$%^*()'
+    password = ''.join(random.choice(chars) for i in range(length))
+
+    if domen.get() == 1:
+        domen_mail = '@solber.ru'
+    elif domen.get() == 0:
+        domen_mail = '@kubis.ru'
+
+    if Office_chosen.get() == "Москва":
+        ou = pyad.adcontainer.ADContainer.from_dn("ou=Users MSK, dc=kubis, dc=ru")
+    elif Office_chosen.get() == "Краснодар":
+        ou = pyad.adcontainer.ADContainer.from_dn("ou=Users KRSN, dc=kubis, dc=ru")
+    elif Office_chosen.get() == "Казань":
+        ou = pyad.adcontainer.ADContainer.from_dn("ou=Kazan, ou=Users RegOffices, dc=kubis, dc=ru")
+    elif Office_chosen.get() == "Новосибирск":
+        ou = pyad.adcontainer.ADContainer.from_dn("ou=Novosibirsk, ou=Users RegOffices, dc=kubis, dc=ru")
+    elif Office_chosen.get() == "Омск":
+        ou = pyad.adcontainer.ADContainer.from_dn("ou=Omsk, ou=Users RegOffices, dc=kubis, dc=ru")
+    elif Office_chosen.get() == "Ростов-на-Дону":
+        ou = pyad.adcontainer.ADContainer.from_dn("ou=Rostov-on-Don, ou=Users RegOffices, dc=kubis, dc=ru")
+    elif Office_chosen.get() == "Санкт-Петербург":
+        ou = pyad.adcontainer.ADContainer.from_dn("ou=St Petersburg, ou=Users RegOffices, dc=kubis, dc=ru")
+
+    Original_FIO = Text_FIO.get('1.0', END).split()
+    Original_FIO = Original_FIO[1] + ' ' + Original_FIO[0] + ' ' + Original_FIO[2]
+    Translit_FIO = translit(Text_FIO.get('1.0', END), 'ru', reversed=True)
+    Translit_FIO = Translit_FIO.split()
+    Account_name = Translit_FIO[1] + " " + Translit_FIO[0]
+    givenName = Translit_FIO[1]
+    sn = Translit_FIO[0]
+    userPrincipalName = Translit_FIO[1][0] + '.' + Translit_FIO[0]
+    sAMAccountName = Translit_FIO[1][0] + '.' + Translit_FIO[0]
+    telephone = '+7 (495) 783-30-67'
+    mail = Translit_FIO[1][0] + '.' + Translit_FIO[0] + domen_mail
+    userAccountControl = '66050'
+    l = Translit_FIO[0] + ' ' + Translit_FIO[1] + ' ' + Translit_FIO[2]
+    title = Text_Title.get('1.0', END)
+    mobile_telephone = Text_Telephone.get('1.0', END)
+    new_user = pyad.aduser.ADUser.create(Account_name, ou, password=password, optional_attributes={'sn':sn,
+                                                                                                    'givenName':givenName,
+                                                                                                    'displayName':Account_name,
+                                                                                                    'telephoneNumber':telephone,
+                                                                                                    'mail':mail,
+                                                                                                    'userPrincipalName':userPrincipalName,
+                                                                                                    'sAMAccountName':sAMAccountName,
+                                                                                                    'userAccountControl':userAccountControl,
+                                                                                                    'title':title,
+                                                                                                    'l':l})
+    def Save_User():
+        data = pd.read_excel('//kkzsql04/KUBIS_DATA/IT/Совместно/Проекты/Active Directory/Passwords_Test.xlsx')
+        new_row = {'Фамилия Имя Отчество': Original_FIO,
+                   'Должность': title,
+                   'Мобильный телефон': mobile_telephone,
+                   'Логин': sAMAccountName,
+                   'Пароль': password}
+        data = data.append(new_row, ignore_index=True)
+        data.to_excel(r'//kkzsql04/KUBIS_DATA/IT/Совместно/Проекты/Active Directory/Passwords_Test.xlsx', index=False)
+    Save_User()
+
+    def Send_Meggage():
+        addr_from = "f.burov@kubis.ru"  # Адресат
+        addr_to = "f.burov@kubis.ru"  # Получатель
+        password = "MSUMCFZZ342511m"  # Пароль
+
+        msg = MIMEMultipart()  # Создаем сообщение
+        msg['From'] = addr_from  # Адресат
+        msg['To'] = addr_to  # Получатель
+        msg['Subject'] = 'На сервере был создан новый пользователь - ' + Original_FIO  # Тема сообщения
+
+        html = f"""\
+        <html>
+          <head></head>
+          <body>
+                <table border="4">
+                        <tr> Филиал - {Office_chosen.get()} </tr>
+                        <tr> ФИО - {Original_FIO} </tr>
+                        <tr> Номер мобильного телефона - {mobile_telephone} </tr>
+                        <tr> Отдел - {Text_Department.get('1.0', END)} </tr>
+                        <tr> Должность - {title} </tr>
+                        <tr> ФИО руководителя - {Text_Director.get('1.0', END)} </tr>
+                        <tr> ФИО сотрудника с аналогичной должностью - {Text_Prava.get('1.0', END)} </tr>
+                        <tr> Дата выхода на работу - {Text_Date.get('1.0', END)} </tr>
+                        <tr> Где расположено рабочее место - {Text_Mesto.get('1.0', END)} </tr>
+                        <tr> Домен - {domen_mail} </tr>
+                </table>
+          </body>
+        </html>
+        """
+        msg.attach(MIMEText(html, 'html', 'utf-8'))  # Добавляем в сообщение HTML-фрагмент
+
+        server = smtplib.SMTP('mobile.kubis.ru', 587)  # Создаем объект SMTP
+        server.set_debuglevel(True)  # Включаем режим отладки - если отчет не нужен, строку можно закомментировать
+        server.starttls()  # Начинаем шифрованный обмен по TLS
+        server.login(addr_from, password)  # Получаем доступ
+        server.send_message(msg)  # Отправляем сообщение
+        server.quit()
+    Send_Meggage()
+
+
+root = Tk()
+root.title("Создание Нового Пользователя")
+root.geometry("600x400")
+
+Label_Office = Label(text='Филиал:')
+Label_Office.place(x=10,y=22)
+Label_FIO = Label(text='Введите ФИО:')
+Label_FIO.place(x=10,y=52)
+Label_Telephone = Label(text='Номер мобильного телефона:')
+Label_Telephone.place(x=10, y = 82)
+Label_Department = Label(text='Введите Отдел:')
+Label_Department.place(x=10,y=112)
+Label_Title = Label(text='Введите должность:')
+Label_Title.place(x=10,y=142)
+Label_Director = Label(text='ФИО руководителя:')
+Label_Director.place(x=10,y=172)
+Label_Prava = Label(text='ФИО сотрудника с аналогичной должностью')
+Label_Prava.place(x=10, y=202)
+Label_Date = Label(text='Дата выхода на работу:')
+Label_Date.place(x=10,y=232)
+Label_Mesto = Label(text='Где расположено рабочее место сотрудника')
+Label_Mesto.place(x=10, y=262)
+
+
+Office_list = tkinter.StringVar()
+Office_chosen = ttk.Combobox(root, width=40, textvariable = Office_list, state='readonly')
+Office_chosen["values"] = ('Москва', 'Краснодар', 'Казань', 'Новосибирск', 'Омск', 'Ростов-на-Дону', 'Санкт-Петербург')
+Office_chosen.grid(column=1,row=5)
+Office_chosen.place(x=150,y=20)
+Office_chosen.current()
+Text_FIO = Text(root,width=40,height=1,font='Arial 14')
+Text_FIO.place(x=150,y=50)
+Text_Telephone = Text(root,width=29,height=1,font='Arial 14')
+Text_Telephone.place(x=271,y=80)
+Text_Department = Text(root,width=29,height=1,font='Arial 14')
+Text_Department.place(x=271,y=110)
+Text_Title = Text(root,width=29,height=1,font='Arial 14')
+Text_Title.place(x=271,y=140)
+Text_Director = Text(root,width=29,height=1,font='Arial 14')
+Text_Director.place(x=271,y=170)
+Text_Prava = Text(root,width=29, height=1, font='Arial 14')
+Text_Prava.place(x=271,y=200)
+Text_Date = Text(root,width=29,height=1,font='Arial 14')
+Text_Date.place(x=271,y=230)
+Text_Mesto = Text(root, width=29, height=3, font='Arial 14')
+Text_Mesto.place(x=271, y=260)
+
+
+domen = IntVar()
+domen.set(0)
+Domen_Solber = Radiobutton(text='@solber.ru', variable=domen, value=1)
+Domen_Kubis = Radiobutton(text='@kubis.ru', variable=domen, value=0)
+Domen_Kubis.place(x=10, y=285)
+Domen_Solber.place(x=10, y=305)
+
+Button_action = Button(root, text = "Создать учетную запись", width=20,height=1,fg='black',font='arial 14',command=New_User)
+Button_action.place(x=200,y=350)
+
+root.mainloop()
+
+
